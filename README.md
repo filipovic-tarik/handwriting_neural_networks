@@ -7,3 +7,20 @@ The dataset is derived from the EMNIST (Extended MNIST) dataset, specifically th
 
 emnist-byclass-train.csv: Training data with labels and pixel values.
 emnist-byclass-test.csv: Test data with labels and pixel values.
+
+## Word recognition
+
+`recognize_word.py` recognizes one handwritten English word made from separated
+block letters. It segments the image, classifies each letter with KNN, and uses
+an English dictionary to rank the most likely words.
+
+Run it with:
+
+```bash
+python -m pip install -r requirements.txt
+python recognize_word.py word_image.png
+```
+
+The image should contain one dark handwritten word on a plain light background.
+The first version requires visible gaps between letters and does not support
+cursive or touching characters.

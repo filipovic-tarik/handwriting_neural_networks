@@ -1,12 +1,21 @@
 import math
 import random
+import csv
+
+import numpy as np
+
+
+NUM_CLASSES = 62
+TRAINING_EXAMPLES = 697_932
+TEST_EXAMPLES = 1_000
+K_NEIGHBORS = 5
 
 # returns Euclidean distance between vectors and b
 def euclidean(a,b):
     squared_diffs = 0
     for i in range(len(a)):
         squared_diffs += (a[i] - b[i]) ** 2
-    
+
     dist = math.sqrt(squared_diffs)
     return(dist)
         
@@ -139,6 +148,124 @@ def print_confusion_matrix(matrix):
         print("\t".join(map(str, row)))
 
 
+def label_to_character(label):
+    """Convert an EMNIST ByClass label (0-61) to a readable character."""
+    if 0 <= label <= 9:
+        return str(label)
+    if 10 <= label <= 35:
+        return chr(ord('A') + label - 10)
+    if 36 <= label <= 61:
+        return chr(ord('a') + label - 36)
+    return "?"
+
+
+def read_numpy_data(file_name, limit, balanced=False):
+    """Read EMNIST CSV data directly into compact NumPy arrays.
+
+    When balanced=True, the requested number of examples is divided as evenly
+    as possible among all 62 character classes. This prevents common digits
+    from overwhelming less frequent letters in the training subset.
+    """
+    features = np.empty((limit, 784), dtype=np.float32)
+    labels = np.empty(limit, dtype=np.int16)
+
+    if balanced:
+        base, remainder = divmod(limit, NUM_CLASSES)
+        targets = np.full(NUM_CLASSES, base, dtype=np.int32)
+        targets[:remainder] += 1
+        counts = np.zeros(NUM_CLASSES, dtype=np.int32)
+
+    accepted = 0
+    with open(file_name, newline='') as csv_file:
+        reader = csv.reader(csv_file)
+        for row in reader:
+            label = int(row[0])
+            if balanced and counts[label] >= targets[label]:
+                continue
+
+            pixels = np.asarray(row[1:785], dtype=np.float32)
+            minimum = pixels.min()
+            maximum = pixels.max()
+            if maximum > minimum:
+                pixels = (pixels - minimum) / (maximum - minimum)
+            else:
+                pixels.fill(0.0)
+
+            labels[accepted] = label
+            features[accepted] = pixels
+            accepted += 1
+            if balanced:
+                counts[label] += 1
+
+            if accepted == limit:
+                break
+
+    if accepted < limit:
+        raise ValueError(
+            f"{file_name} supplied only {accepted:,} usable examples; "
+            f"{limit:,} were requested."
+        )
+
+    return features, labels
+
+
+def knn_numpy(train_features, train_labels, query_features, k=K_NEIGHBORS,
+              batch_size=25):
+    """Classify query images with k-NN using memory-efficient NumPy batches."""
+    predictions = np.empty(len(query_features), dtype=np.int16)
+    train_squared = np.sum(train_features * train_features, axis=1)
+
+    for start in range(0, len(query_features), batch_size):
+        stop = min(start + batch_size, len(query_features))
+        queries = query_features[start:stop]
+        query_squared = np.sum(queries * queries, axis=1)[:, None]
+
+        # Squared Euclidean distance without constructing a huge
+        # (queries x training examples x 784 pixels) temporary array.
+        distances = (
+            query_squared
+            + train_squared[None, :]
+            - 2.0 * queries @ train_features.T
+        )
+
+        nearest = np.argpartition(distances, k - 1, axis=1)[:, :k]
+        for offset, neighbor_indices in enumerate(nearest):
+            neighbor_indices = neighbor_indices[
+                np.argsort(distances[offset, neighbor_indices])
+            ]
+            neighbor_labels = train_labels[neighbor_indices]
+
+            counts = {}
+            for label in neighbor_labels:
+                label = int(label)
+                counts[label] = counts.get(label, 0) + 1
+            predictions[start + offset] = max(counts, key=counts.get)
+
+        print(f"Classified {stop:,}/{len(query_features):,} test characters")
+
+    return predictions
+
+
+def print_largest_confusions(actual_labels, predicted_labels, count=10):
+    matrix = np.zeros((NUM_CLASSES, NUM_CLASSES), dtype=np.int32)
+    np.add.at(matrix, (actual_labels, predicted_labels), 1)
+    np.fill_diagonal(matrix, 0)
+
+    print("\nMost common mistakes:")
+    flat_indices = np.argsort(matrix.ravel())[::-1]
+    shown = 0
+    for flat_index in flat_indices:
+        occurrences = int(matrix.ravel()[flat_index])
+        if occurrences == 0 or shown == count:
+            break
+        actual, predicted = np.unravel_index(flat_index, matrix.shape)
+        print(
+            f"  {label_to_character(actual)!r} predicted as "
+            f"{label_to_character(predicted)!r}: {occurrences} times"
+        )
+        shown += 1
+
+
 def read_data(file_name):
     
     data_set = []
@@ -175,54 +302,35 @@ def show(file_name,mode):
         print(' ')
 
 def evaluate_knn():
-    # Read training, validation, and test data
-    print("Reading data...")
-    train_data = read_data('emnist-byclass-train.csv')
-    test_data = read_data('emnist-byclass-test.csv')
-    data_labels = [label[0] for label in test_data]
+    print(f"Reading all {TRAINING_EXAMPLES:,} training examples...")
+    train_features, train_labels = read_numpy_data(
+        'emnist-byclass-train.csv', TRAINING_EXAMPLES
+    )
+    print(f"Reading {TEST_EXAMPLES:,} test examples...")
+    test_features, test_labels = read_numpy_data(
+        'emnist-byclass-test.csv', TEST_EXAMPLES
+    )
 
-    print("Data read completed.")
+    print(
+        f"Running {K_NEIGHBORS}-nearest-neighbor classification with "
+        "Euclidean distance..."
+    )
+    predictions = knn_numpy(
+        train_features, train_labels, test_features, K_NEIGHBORS
+    )
 
-    train_data_binary = convert_binary(train_data)
-    test_data_binary = convert_binary(test_data)
-
-    print("Data conversion completed.")
-
-    # Split validation and test data into features and labels
-    test_features = [features for _, features in test_data_binary]
-    test_labels = [label[0] for label, _ in test_data_binary]
-
-    print("Data split completed.")
-    
-    # # Evaluate on validation set
-    # print("Evaluating on validation set...")
-    # predictions_euclidean = knn(train_data_binary, test_features, metric="euclidean")
-    # predictions_cosim = knn(train_data_binary, test_features, metric="cosim")
-    # print("Validation set evaluation completed.")
-
-    # Run k-NN classifier on the test set
-    print("Evaluating on test set using Euclidean distance...")
-    test_predictions_euclidean = knn(train_data_binary, test_features, metric="euclidean")
-    # print("Evaluating on test set using Cosine similarity...")
-    # test_predictions_cosim = knn(train_data_binary, test_features, metric="cosim")
-
-    # Create confusion matrices for the test set
-    confusion_matrix_euclidean = create_confusion_matrix(test_labels, test_predictions_euclidean)
-    # confusion_matrix_cosim = create_confusion_matrix(test_labels, test_predictions_cosim)
-
-    # Print the confusion matrices
-    print("\nConfusion Matrix (Euclidean Distance):")
-    print_confusion_matrix(confusion_matrix_euclidean)
-    # print("\nConfusion Matrix (Cosine Similarity):")
-    # print_confusion_matrix(confusion_matrix_cosim)
+    correct = int(np.sum(predictions == test_labels))
+    accuracy = 100.0 * correct / len(test_labels)
+    print(f"\nCorrect predictions: {correct:,}/{len(test_labels):,}")
+    print(f"Accuracy: {accuracy:.1f}%")
+    print_largest_confusions(test_labels, predictions)
 
     
 def main():
     show('emnist-byclass-test.csv','pixels')
-    
-    
+
+
 if __name__ == "__main__":
     # main()
     evaluate_knn()
     #evaluate_kmeans()
-    
