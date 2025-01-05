@@ -9,6 +9,9 @@ from wordfreq import zipf_frequency
 from knn import TRAINING_EXAMPLES, label_to_character, read_numpy_data
 
 
+MINIMUM_CHARACTER_GAP = 8
+
+
 # Converts a word image to dark-background, light-writing format
 def read_word_image(file_name):
     image = Image.open(file_name).convert('L')
@@ -74,13 +77,20 @@ def split_characters(pixels):
     occupied_columns = np.any(writing, axis=0)
     segments = []
     start = None
+    blank_start = None
 
     for i, occupied in enumerate(occupied_columns):
-        if occupied and start is None:
-            start = i
-        if not occupied and start is not None:
-            segments.append((start, i))
-            start = None
+        if occupied:
+            if start is None:
+                start = i
+            blank_start = None
+        elif start is not None:
+            if blank_start is None:
+                blank_start = i
+            if i - blank_start + 1 >= MINIMUM_CHARACTER_GAP:
+                segments.append((start, blank_start))
+                start = None
+                blank_start = None
 
     if start is not None:
         segments.append((start, len(occupied_columns)))

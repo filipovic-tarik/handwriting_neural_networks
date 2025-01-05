@@ -21,6 +21,30 @@ python -m pip install -r requirements.txt
 python recognize_word.py word_image.png
 ```
 
+Generate 200,000 training images and 2,000 test images covering 50,000 words:
+
+```bash
+python generate_words.py
+```
+
+Test the original EMNIST KNN on generated words with vocabulary context:
+
+```bash
+python train_word_recognizer.py
+```
+
+The reproducible lowercase benchmark uses all 697,932 EMNIST training
+characters and 2,000 word images assembled from untouched, held-out EMNIST
+characters. It produced:
+
+- 86.49% case-insensitive letter accuracy
+- 44.45% exact-word accuracy from character recognition alone
+- 93.90% exact-word accuracy after correction against a 50,000-word vocabulary
+
+The vocabulary-assisted result is a closed-vocabulary measurement. The word
+images contain separated lowercase characters; they do not test cursive or
+touching handwriting.
+
 The image should contain one dark handwritten word on a plain light background.
 The first version requires visible gaps between letters and does not support
 cursive or touching characters.

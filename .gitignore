@@ -1,2 +1,4 @@
 emnist-byclass-*.csv
 __pycache__/
+synthetic_words/
+.DS_Store
