@@ -1,21 +1,22 @@
 import numpy as np
 
-# Activation function: Sigmoid
+
+# Applies the sigmoid activation function
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
-# Derivative of sigmoid for backpropagation
+# Calculates the sigmoid derivative for backpropagation
 def sigmoid_derivative(x):
     return x * (1 - x)
 
-# Convert labels to one-hot encoding
+# Converts labels to one-hot encoding
 def one_hot_encode(labels, num_classes):
     one_hot = np.zeros((len(labels), num_classes))
     for idx, label in enumerate(labels):
         one_hot[idx, label] = 1
     return one_hot
 
-# Neural Network class
+# Implements a neural network with one hidden layer
 class BasicNeuralNetwork:
     def __init__(self, input_size, hidden_size, output_size):
         # Initialize weights and biases
@@ -58,7 +59,7 @@ class BasicNeuralNetwork:
         # Prediction
         return np.argmax(self.forward(X), axis=1)
 
-# Read dataset and preprocess
+# Reads and preprocesses a dataset
 def read_and_preprocess_data(file_name, num_samples=1000):
     import csv
     with open(file_name, 'r') as f:
@@ -68,14 +69,14 @@ def read_and_preprocess_data(file_name, num_samples=1000):
     features = np.array([[float(val) / 255.0 for val in row[1:]] for row in data])  # Normalize pixel values
     return features, labels
 
-# Main function to train and evaluate
+# Trains and evaluates the neural network
 def main():
     print("Reading and preprocessing data...")
     train_features, train_labels = read_and_preprocess_data('emnist-byclass-train.csv', num_samples=1000)
     test_features, test_labels = read_and_preprocess_data('emnist-byclass-test.csv', num_samples=200)
 
-    num_classes = 62  # Adjust based on your dataset
-    input_size = 784  # Number of features (28x28 pixels)
+    num_classes = 62  # 10 digits, 26 uppercase letters, and 26 lowercase letters
+    input_size = 784  # Number of features (28×28 pixels)
     hidden_size = 16  # Arbitrary choice for hidden neurons
 
     # One-hot encode labels

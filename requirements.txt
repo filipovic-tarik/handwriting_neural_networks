@@ -1,3 +1,5 @@
+matplotlib
 numpy
 Pillow
+torch
 wordfreq

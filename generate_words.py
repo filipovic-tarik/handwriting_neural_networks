@@ -70,7 +70,7 @@ def read_words(number):
     return words
 
 
-# Builds one word by joining untouched 28 by 28 EMNIST letters
+# Builds one word by joining untouched 28×28 EMNIST letters
 def build_word_image(word, letter_images, generator):
     characters = [generator.choice(letter_images[letter]) for letter in word]
     width = 28 * len(characters) + CHARACTER_GAP * (len(characters) - 1)

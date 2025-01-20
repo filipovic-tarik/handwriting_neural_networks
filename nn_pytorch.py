@@ -6,7 +6,7 @@ import csv
 import matplotlib.pyplot as plt
 
 
-# Function to load and preprocess the data
+# Loads and preprocesses the data
 def load_data(file_name, num_samples=None):
     features = []
     labels = []
@@ -16,14 +16,14 @@ def load_data(file_name, num_samples=None):
             if num_samples is not None and i >= num_samples:
                 break
             label = int(row[0])
-            pixels = [float(pix) / 255.0 for pix in row[1:]]  # Normalize pixel values to [0,1]
+            pixels = [float(pixel) / 255.0 for pixel in row[1:]]  # Normalize to [0, 1]
             features.append(pixels)
             labels.append(label)
     features = np.array(features, dtype=np.float32)
     labels = np.array(labels, dtype=np.int64)
     return features, labels
 
-# Define the neural network model
+# Defines the neural network model
 class SimpleNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
         super(SimpleNN, self).__init__()
@@ -58,10 +58,10 @@ def main():
     average_losses = []
 
     # Hyperparameters
-    input_size = 784         # 28x28 images
+    input_size = 784         # 28×28 images
     hidden_size = 128        # Number of neurons in hidden layer
     num_classes = 62         # Number of output classes
-    num_epochs = 200           # Number of training epochs
+    num_epochs = 200         # Number of training epochs
     batch_size = 64          # Batch size
     learning_rate = 0.001    # Learning rate
 
@@ -88,7 +88,7 @@ def main():
     total_step = len(train_loader)
     for epoch in range(num_epochs):
         epoch_loss = 0
-        for i, (images, labels) in enumerate(train_loader):
+        for images, labels in train_loader:
             # Forward pass
             outputs = model(images)
             loss = criterion(outputs, labels)
@@ -100,12 +100,12 @@ def main():
             epoch_loss += loss.item()
 
         # Calculate average loss for the epoch
-        avg_loss = epoch_loss / total_step 
+        avg_loss = epoch_loss / total_step
 
         # Store data for plotting
         epochs_list.append(epoch + 1)
         average_losses.append(avg_loss)
-        
+
         if (epoch + 1) % 10 == 0 or (epoch + 1) == num_epochs:
             print(f'Epoch [{epoch + 1}/{num_epochs}], Average Loss: {avg_loss:.4f}')
 
@@ -122,7 +122,7 @@ def main():
 
         print(f'\nTest Accuracy: {100 * correct / total:.2f}%')
 
-     # Plot the training loss
+    # Plot the training loss
     plt.figure(figsize=(10, 6))
     plt.plot(epochs_list, average_losses, marker='o', linestyle='-', color='b')
     plt.xlabel('Epochs')

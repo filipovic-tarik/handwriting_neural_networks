@@ -31,7 +31,7 @@ def read_labels(folder):
     return examples
 
 
-# Extracts the untouched 28 by 28 EMNIST characters from each word
+# Extracts the untouched 28×28 EMNIST characters from each word
 def prepare_test_characters(examples):
     features = []
     boundaries = []

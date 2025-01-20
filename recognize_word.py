@@ -107,7 +107,7 @@ def split_characters(pixels):
     return characters
 
 
-# Centers one character in the 28 by 28 EMNIST format
+# Centers one character in the 28×28 EMNIST format
 def prepare_character(character):
     image = Image.fromarray(character.astype(np.uint8))
     width, height = image.size
