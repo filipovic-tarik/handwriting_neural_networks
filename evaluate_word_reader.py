@@ -6,8 +6,8 @@ import time
 import numpy as np
 from wordfreq import zipf_frequency
 
-from knn import TRAINING_EXAMPLES, read_numpy_data
-from recognize_word import read_word_image
+from nearest_neighbor_classifier import TRAINING_EXAMPLES, load_emnist_arrays
+from word_reader import load_word_pixels
 
 
 ALPHABET = 'abcdefghijklmnopqrstuvwxyz'
@@ -18,7 +18,7 @@ CHARACTER_GAP = 8
 
 
 # Reads image names and their correct words
-def read_labels(folder):
+def load_labeled_examples(folder):
     examples = []
     label_file = os.path.join(folder, 'labels.tsv')
 
@@ -32,12 +32,12 @@ def read_labels(folder):
 
 
 # Extracts the untouched 28×28 EMNIST characters from each word
-def prepare_test_characters(examples):
+def extract_test_characters(examples):
     features = []
     boundaries = []
 
     for number, (image_file, expected) in enumerate(examples, start=1):
-        pixels = read_word_image(image_file)
+        pixels = load_word_pixels(image_file)
         expected_width = (
             CHARACTER_SIZE * len(expected)
             + CHARACTER_GAP * (len(expected) - 1)
@@ -59,7 +59,7 @@ def prepare_test_characters(examples):
 
 
 # Returns probability-like scores from the nearest EMNIST letters
-def classify_characters(train_features, train_labels, test_features):
+def estimate_letter_probabilities(train_features, train_labels, test_features):
     probabilities = np.zeros((len(test_features), len(ALPHABET)), dtype=np.float32)
     predicted_labels = np.zeros(len(test_features), dtype=np.int16)
     train_squared = np.sum(train_features * train_features, axis=1)
@@ -100,7 +100,7 @@ def classify_characters(train_features, train_labels, test_features):
 
 
 # Stores vocabulary words as arrays of letter numbers
-def prepare_vocabulary(words):
+def index_vocabulary_by_length(words):
     vocabulary = {}
     for word in words:
         vocabulary.setdefault(len(word), []).append(word)
@@ -117,7 +117,7 @@ def prepare_vocabulary(words):
 
 
 # Finds the vocabulary word best supported by the letter probabilities
-def correct_word(probabilities, vocabulary):
+def choose_contextual_word(probabilities, vocabulary):
     candidates, letters, frequencies = vocabulary[len(probabilities)]
     scores = np.zeros(len(candidates))
 
@@ -128,7 +128,9 @@ def correct_word(probabilities, vocabulary):
     return candidates[int(np.argmax(scores))]
 
 
-def evaluate(probabilities, predicted_labels, boundaries, examples, vocabulary):
+def report_benchmark_results(
+    probabilities, predicted_labels, boundaries, examples, vocabulary
+):
     raw_correct = 0
     corrected_correct = 0
     original_character_correct = 0
@@ -139,7 +141,7 @@ def evaluate(probabilities, predicted_labels, boundaries, examples, vocabulary):
     for (start, stop), (_, expected) in zip(boundaries, examples):
         word_probabilities = probabilities[start:stop]
         raw = ''.join(ALPHABET[index] for index in np.argmax(word_probabilities, axis=1))
-        corrected = correct_word(word_probabilities, vocabulary)
+        corrected = choose_contextual_word(word_probabilities, vocabulary)
         expected_labels = np.asarray([36 + ALPHABET.index(letter) for letter in expected])
 
         raw_correct += raw == expected
@@ -165,7 +167,7 @@ def evaluate(probabilities, predicted_labels, boundaries, examples, vocabulary):
             print(f"  expected {expected!r}, raw {raw!r}, corrected {corrected!r}")
 
 
-def main():
+def run_benchmark():
     start = time.time()
     base_directory = os.path.dirname(os.path.abspath(__file__))
     data_folder = os.path.join(base_directory, 'synthetic_words')
@@ -173,23 +175,25 @@ def main():
     test_folder = os.path.join(data_folder, 'test')
     emnist_file = os.path.join(base_directory, 'emnist-byclass-train.csv')
 
-    training_examples = read_labels(training_folder)
-    test_examples = read_labels(test_folder)
+    training_examples = load_labeled_examples(training_folder)
+    test_examples = load_labeled_examples(test_folder)
     words = sorted({word for _, word in training_examples})
-    vocabulary = prepare_vocabulary(words)
+    vocabulary = index_vocabulary_by_length(words)
 
     print(f"Reading all {TRAINING_EXAMPLES:,} original EMNIST training characters...")
-    train_features, train_labels = read_numpy_data(emnist_file, TRAINING_EXAMPLES)
+    train_features, train_labels = load_emnist_arrays(
+        emnist_file, TRAINING_EXAMPLES
+    )
     print(f"Using {len(train_features):,} original EMNIST characters for KNN.")
 
     print(f"Preparing {len(test_examples):,} generated test words...")
-    test_features, boundaries = prepare_test_characters(test_examples)
+    test_features, boundaries = extract_test_characters(test_examples)
 
     print("Running KNN letter recognition...")
-    probabilities, predicted_labels = classify_characters(
+    probabilities, predicted_labels = estimate_letter_probabilities(
         train_features, train_labels, test_features
     )
-    evaluate(
+    report_benchmark_results(
         probabilities,
         predicted_labels,
         boundaries,
@@ -200,4 +204,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    run_benchmark()

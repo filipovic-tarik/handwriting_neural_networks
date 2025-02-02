@@ -3,7 +3,7 @@ import random
 
 
 # Returns Euclidean distance between vectors a and b
-def euclidean(a, b):
+def centroid_euclidean_distance(a, b):
     squared_diffs = 0
     for i in range(len(a)):
         squared_diffs += (a[i] - b[i]) ** 2
@@ -13,7 +13,7 @@ def euclidean(a, b):
 
 
 # Returns cosine similarity between vectors a and b
-def cosim(a, b):
+def centroid_cosine_similarity(a, b):
     dot_product = 0
     a_mag = 0
     b_mag = 0
@@ -31,7 +31,7 @@ def cosim(a, b):
 
 
 # Returns Hamming distance between vectors a and b
-def hamming(a, b):
+def centroid_hamming_distance(a, b):
     dist = 0
     for i in range(len(a)):
         if a[i] != b[i]:
@@ -40,7 +40,7 @@ def hamming(a, b):
 
 
 # Returns Pearson correlation between vectors a and b
-def pearson(a, b):
+def centroid_pearson_correlation(a, b):
     n = len(a)
     a_sum = sum(a)
     b_sum = sum(b)
@@ -59,19 +59,19 @@ def pearson(a, b):
     return dist
 
 
-def initialize_centroids(data, k):
+def choose_initial_centroids(data, k):
     random_indices = random.sample(range(len(data)), k)
     centroids = [data[i] for i in random_indices]
     return centroids
 
 
-def assign_clusters(data, centroids, metric):
+def group_by_centroid(data, centroids, metric):
     clusters = [[] for _ in range(len(centroids))]
     for idx, point in enumerate(data):
         if metric == "euclidean":
-            distances = [euclidean(point, centroid) for centroid in centroids]
+            distances = [centroid_euclidean_distance(point, centroid) for centroid in centroids]
         elif metric == "cosim":
-            distances = [cosim(point, centroid) for centroid in centroids]
+            distances = [centroid_cosine_similarity(point, centroid) for centroid in centroids]
         else:
             raise ValueError("Unsupported metric. Use 'euclidean' or 'cosim'.")
 
@@ -83,7 +83,7 @@ def assign_clusters(data, centroids, metric):
     return clusters
 
 
-def update_centroids(clusters, data):
+def recalculate_centroids(clusters, data):
     centroids = []
     for cluster in clusters:
         if len(cluster) > 0:
@@ -102,13 +102,13 @@ def update_centroids(clusters, data):
     return centroids
 
 
-def kmeans(data, data_labels, query, metric, k=10, max_iterations=100):
-    centroids = initialize_centroids(data, k)
+def classify_with_centroids(data, data_labels, query, metric, k=10, max_iterations=100):
+    centroids = choose_initial_centroids(data, k)
 
     for _ in range(max_iterations):
-        clusters = assign_clusters(data, centroids, metric)
+        clusters = group_by_centroid(data, centroids, metric)
 
-        new_centroids = update_centroids(clusters, data)
+        new_centroids = recalculate_centroids(clusters, data)
 
         if centroids == new_centroids:
             break
@@ -129,9 +129,15 @@ def kmeans(data, data_labels, query, metric, k=10, max_iterations=100):
     labels = []
     for query_point in query:
         if metric == "euclidean":
-            distances = [euclidean(query_point, centroid) for centroid in centroids]
+            distances = [
+                centroid_euclidean_distance(query_point, centroid)
+                for centroid in centroids
+            ]
         elif metric == "cosim":
-            distances = [cosim(query_point, centroid) for centroid in centroids]
+            distances = [
+                centroid_cosine_similarity(query_point, centroid)
+                for centroid in centroids
+            ]
         else:
             raise ValueError("Unsupported metric. Use 'euclidean' or 'cosim'.")
 

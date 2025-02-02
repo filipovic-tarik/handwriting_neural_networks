@@ -6,14 +6,18 @@ import numpy as np
 from PIL import Image
 from wordfreq import zipf_frequency
 
-from knn import TRAINING_EXAMPLES, label_to_character, read_numpy_data
+from nearest_neighbor_classifier import (
+    TRAINING_EXAMPLES,
+    decode_emnist_label,
+    load_emnist_arrays,
+)
 
 
 MINIMUM_CHARACTER_GAP = 8
 
 
 # Converts a word image to dark-background, light-writing format
-def read_word_image(file_name):
+def load_word_pixels(file_name):
     image = Image.open(file_name).convert('L')
     pixels = np.asarray(image, dtype=np.float32)
 
@@ -29,7 +33,7 @@ def read_word_image(file_name):
 
 
 # Finds a threshold that separates the writing from the background
-def calculate_threshold(pixels):
+def find_otsu_threshold(pixels):
     histogram = np.bincount(pixels.astype(np.uint8).ravel(), minlength=256)
     total = pixels.size
     total_sum = sum(i * histogram[i] for i in range(256))
@@ -60,8 +64,8 @@ def calculate_threshold(pixels):
 
 
 # Splits a word into characters using blank vertical gaps
-def split_characters(pixels):
-    threshold = calculate_threshold(pixels)
+def segment_characters(pixels):
+    threshold = find_otsu_threshold(pixels)
     writing = pixels > threshold
 
     rows = np.where(np.any(writing, axis=1))[0]
@@ -108,7 +112,7 @@ def split_characters(pixels):
 
 
 # Centers one character in the 28×28 EMNIST format
-def prepare_character(character):
+def format_character_for_emnist(character):
     image = Image.fromarray(character.astype(np.uint8))
     width, height = image.size
     scale = min(20 / width, 20 / height)
@@ -129,8 +133,11 @@ def prepare_character(character):
 
 
 # Returns several likely letters for each character image
-def classify_characters(train_features, train_labels, characters, neighbors=50):
-    queries = np.asarray([prepare_character(character) for character in characters])
+def score_character_candidates(train_features, train_labels, characters, neighbors=50):
+    queries = np.asarray([
+        format_character_for_emnist(character)
+        for character in characters
+    ])
     train_squared = np.sum(train_features * train_features, axis=1)
     query_squared = np.sum(queries * queries, axis=1)[:, None]
     distances = query_squared + train_squared[None, :] - 2 * queries @ train_features.T
@@ -143,7 +150,7 @@ def classify_characters(train_features, train_labels, characters, neighbors=50):
             label = int(train_labels[index])
             distance = max(float(distances[i, index]), 0)
             score = 1 / (math.sqrt(distance) + 0.001)
-            character = label_to_character(label)
+            character = decode_emnist_label(label)
             scores[character] = scores.get(character, 0) + score
 
         total = sum(scores.values())
@@ -154,7 +161,7 @@ def classify_characters(train_features, train_labels, characters, neighbors=50):
 
 
 # Reads an English word list
-def read_dictionary(file_name, word_length):
+def load_dictionary_words(file_name, word_length):
     words = set()
     with open(file_name, 'r', errors='ignore') as dictionary:
         for line in dictionary:
@@ -165,7 +172,7 @@ def read_dictionary(file_name, word_length):
 
 
 # Scores dictionary words using the character predictions
-def find_best_words(predictions, words, number=5):
+def rank_candidate_words(predictions, words, number=5):
     letter_scores = []
     for prediction in predictions:
         scores = {}
@@ -195,9 +202,9 @@ def find_best_words(predictions, words, number=5):
     return [(word, weight / total) for weight, (_, word) in zip(weights, best_words)]
 
 
-def main():
+def run_word_reader():
     if len(sys.argv) < 2:
-        print("Usage: python recognize_word.py word_image.png [dictionary.txt]")
+        print("Usage: python word_reader.py word_image.png [dictionary.txt]")
         return
 
     base_directory = os.path.dirname(os.path.abspath(__file__))
@@ -206,23 +213,23 @@ def main():
     training_file = os.path.join(base_directory, 'emnist-byclass-train.csv')
 
     print("Reading word image...")
-    pixels = read_word_image(image_file)
-    characters = split_characters(pixels)
+    pixels = load_word_pixels(image_file)
+    characters = segment_characters(pixels)
     if not characters:
         print("No writing was found in the image.")
         return
 
     print(f"Found {len(characters)} separated characters.")
     print(f"Reading all {TRAINING_EXAMPLES:,} training examples...")
-    train_features, train_labels = read_numpy_data(training_file, TRAINING_EXAMPLES)
+    train_features, train_labels = load_emnist_arrays(training_file, TRAINING_EXAMPLES)
 
     print("Classifying characters...")
-    predictions = classify_characters(train_features, train_labels, characters)
+    predictions = score_character_candidates(train_features, train_labels, characters)
     raw_word = ''.join(max(prediction, key=prediction.get) for prediction in predictions)
     print(f"Character prediction: {raw_word}")
 
-    words = read_dictionary(dictionary_file, len(characters))
-    best_words = find_best_words(predictions, words)
+    words = load_dictionary_words(dictionary_file, len(characters))
+    best_words = rank_candidate_words(predictions, words)
     if not best_words:
         print("No dictionary words of this length were found.")
         return
@@ -233,4 +240,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    run_word_reader()

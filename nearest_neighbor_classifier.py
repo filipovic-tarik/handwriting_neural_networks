@@ -10,7 +10,7 @@ TEST_EXAMPLES = 1_000
 K_NEIGHBORS = 5
 
 # Returns Euclidean distance between vectors a and b
-def euclidean(a, b):
+def neighbor_euclidean_distance(a, b):
     squared_diffs = 0
     for i in range(len(a)):
         squared_diffs += (a[i] - b[i]) ** 2
@@ -20,7 +20,7 @@ def euclidean(a, b):
 
 
 # Returns cosine similarity between vectors a and b
-def cosim(a, b):
+def neighbor_cosine_similarity(a, b):
     dot_product = 0
     a_mag = 0
     b_mag = 0
@@ -38,7 +38,7 @@ def cosim(a, b):
 
 
 # Returns Hamming distance between vectors a and b
-def hamming(a, b):
+def neighbor_hamming_distance(a, b):
     dist = 0
     for i in range(len(a)):
         if a[i] != b[i]:
@@ -47,7 +47,7 @@ def hamming(a, b):
 
 
 # Returns Pearson correlation between vectors a and b
-def pearson(a, b):
+def neighbor_pearson_correlation(a, b):
     n = len(a)
     a_sum = sum(a)
     b_sum = sum(b)
@@ -67,7 +67,7 @@ def pearson(a, b):
 
 
 # Returns labels for query data based on labeled training observations
-def knn(data, query, metric):
+def classify_nearest_neighbors(data, query, metric):
     for i in range(len(query)):
         query[i] = [float(x) for x in query[i]]
 
@@ -75,10 +75,16 @@ def knn(data, query, metric):
     labels = []
     for query_point in query:
         if metric == "euclidean":
-            distances = [(euclidean(query_point, attrib), label[0]) for label, attrib in data]
+            distances = [
+                (neighbor_euclidean_distance(query_point, attributes), label[0])
+                for label, attributes in data
+            ]
             distances.sort(key=lambda x: x[0])
         elif metric == "cosim":
-            similarities = [(cosim(query_point, attrib), label[0]) for label, attrib in data]
+            similarities = [
+                (neighbor_cosine_similarity(query_point, attributes), label[0])
+                for label, attributes in data
+            ]
             distances = sorted(similarities, key=lambda x: x[0], reverse=True)
         else:
             raise ValueError("Unsupported metric. Use 'euclidean' or 'cosim'.")
@@ -94,7 +100,7 @@ def knn(data, query, metric):
         labels.append(most_common_label)
     return labels
 
-def convert_binary(data):
+def normalize_records(data):
     # Convert all values in the matrix to floats and create a new matrix
     for i in range(len(data)):
         data[i][0] = [int(data[i][0])]
@@ -115,7 +121,7 @@ def convert_binary(data):
 
 
 # Calculates the mean point across all dimensions
-def calculate_mean(points):
+def mean_point(points):
     num_points = len(points)
     num_dimensions = len(points[0])
     mean = [0] * num_dimensions  # Initialize a list for the mean of each dimension
@@ -134,19 +140,19 @@ def calculate_mean(points):
 
 
 
-def create_confusion_matrix(actual_labels, pred_labels):
+def build_confusion_matrix(actual_labels, predicted_labels):
     confusion_matrix = [[0 for i in range(62)] for j in range(62)]
-    for actual, pred in zip(actual_labels, pred_labels):
-        confusion_matrix[actual][pred] += 1
+    for actual, predicted in zip(actual_labels, predicted_labels):
+        confusion_matrix[actual][predicted] += 1
     return confusion_matrix
 
-def print_confusion_matrix(matrix):
+def display_confusion_matrix(matrix):
     print("Confusion Matrix:")
     for row in matrix:
         print("\t".join(map(str, row)))
 
 
-def label_to_character(label):
+def decode_emnist_label(label):
     """Convert an EMNIST ByClass label (0-61) to a readable character."""
     if 0 <= label <= 9:
         return str(label)
@@ -157,7 +163,7 @@ def label_to_character(label):
     return "?"
 
 
-def read_numpy_data(file_name, limit, balanced=False):
+def load_emnist_arrays(file_name, limit, balanced=False):
     """Read EMNIST CSV data directly into compact NumPy arrays.
 
     When balanced=True, the requested number of examples is divided as evenly
@@ -207,8 +213,9 @@ def read_numpy_data(file_name, limit, balanced=False):
     return features, labels
 
 
-def knn_numpy(train_features, train_labels, query_features, k=K_NEIGHBORS,
-              batch_size=25):
+def classify_nearest_neighbors_numpy(
+    train_features, train_labels, query_features, k=K_NEIGHBORS, batch_size=25
+):
     """Classify query images with k-NN using memory-efficient NumPy batches."""
     predictions = np.empty(len(query_features), dtype=np.int16)
     train_squared = np.sum(train_features * train_features, axis=1)
@@ -244,7 +251,7 @@ def knn_numpy(train_features, train_labels, query_features, k=K_NEIGHBORS,
     return predictions
 
 
-def print_largest_confusions(actual_labels, predicted_labels, count=10):
+def display_largest_confusions(actual_labels, predicted_labels, count=10):
     matrix = np.zeros((NUM_CLASSES, NUM_CLASSES), dtype=np.int32)
     np.add.at(matrix, (actual_labels, predicted_labels), 1)
     np.fill_diagonal(matrix, 0)
@@ -258,13 +265,13 @@ def print_largest_confusions(actual_labels, predicted_labels, count=10):
             break
         actual, predicted = np.unravel_index(flat_index, matrix.shape)
         print(
-            f"  {label_to_character(actual)!r} predicted as "
-            f"{label_to_character(predicted)!r}: {occurrences} times"
+            f"  {decode_emnist_label(actual)!r} predicted as "
+            f"{decode_emnist_label(predicted)!r}: {occurrences} times"
         )
         shown += 1
 
 
-def read_data(file_name):
+def load_records(file_name):
     data_set = []
     count = 0
     with open(file_name, 'rt') as file:
@@ -282,8 +289,8 @@ def read_data(file_name):
     return data_set
 
 
-def show(file_name, mode):
-    data_set = read_data(file_name)
+def display_records(file_name, mode):
+    data_set = load_records(file_name)
     for obs in range(len(data_set)):
         for idx in range(784):
             if mode == 'pixels':
@@ -299,13 +306,13 @@ def show(file_name, mode):
         print(' ')
 
 
-def evaluate_knn():
+def evaluate_nearest_neighbors():
     print(f"Reading all {TRAINING_EXAMPLES:,} training examples...")
-    train_features, train_labels = read_numpy_data(
+    train_features, train_labels = load_emnist_arrays(
         'emnist-byclass-train.csv', TRAINING_EXAMPLES
     )
     print(f"Reading {TEST_EXAMPLES:,} test examples...")
-    test_features, test_labels = read_numpy_data(
+    test_features, test_labels = load_emnist_arrays(
         'emnist-byclass-test.csv', TEST_EXAMPLES
     )
 
@@ -313,7 +320,7 @@ def evaluate_knn():
         f"Running {K_NEIGHBORS}-nearest-neighbor classification with "
         "Euclidean distance..."
     )
-    predictions = knn_numpy(
+    predictions = classify_nearest_neighbors_numpy(
         train_features, train_labels, test_features, K_NEIGHBORS
     )
 
@@ -321,13 +328,13 @@ def evaluate_knn():
     accuracy = 100.0 * correct / len(test_labels)
     print(f"\nCorrect predictions: {correct:,}/{len(test_labels):,}")
     print(f"Accuracy: {accuracy:.1f}%")
-    print_largest_confusions(test_labels, predictions)
+    display_largest_confusions(test_labels, predictions)
 
 
 
-def main():
-    show('emnist-byclass-test.csv', 'pixels')
+def preview_dataset():
+    display_records('emnist-byclass-test.csv', 'pixels')
 
 
 if __name__ == "__main__":
-    evaluate_knn()
+    evaluate_nearest_neighbors()

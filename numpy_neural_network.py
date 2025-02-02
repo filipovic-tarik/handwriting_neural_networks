@@ -2,22 +2,22 @@ import numpy as np
 
 
 # Applies the sigmoid activation function
-def sigmoid(x):
+def sigmoid_activation(x):
     return 1 / (1 + np.exp(-x))
 
 # Calculates the sigmoid derivative for backpropagation
-def sigmoid_derivative(x):
+def sigmoid_gradient(x):
     return x * (1 - x)
 
 # Converts labels to one-hot encoding
-def one_hot_encode(labels, num_classes):
+def encode_one_hot(labels, num_classes):
     one_hot = np.zeros((len(labels), num_classes))
     for idx, label in enumerate(labels):
         one_hot[idx, label] = 1
     return one_hot
 
 # Implements a neural network with one hidden layer
-class BasicNeuralNetwork:
+class NumpyCharacterNetwork:
     def __init__(self, input_size, hidden_size, output_size):
         # Initialize weights and biases
         self.weights_input_hidden = np.random.uniform(-1, 1, (input_size, hidden_size))
@@ -25,42 +25,46 @@ class BasicNeuralNetwork:
         self.bias_hidden = np.zeros((1, hidden_size))
         self.bias_output = np.zeros((1, output_size))
 
-    def forward(self, X):
+    def run_forward_pass(self, features):
         # Forward pass
-        self.input = X
-        self.hidden_layer = sigmoid(np.dot(X, self.weights_input_hidden) + self.bias_hidden)
-        self.output_layer = sigmoid(np.dot(self.hidden_layer, self.weights_hidden_output) + self.bias_output)
+        self.input = features
+        self.hidden_layer = sigmoid_activation(
+            np.dot(features, self.weights_input_hidden) + self.bias_hidden
+        )
+        self.output_layer = sigmoid_activation(
+            np.dot(self.hidden_layer, self.weights_hidden_output) + self.bias_output
+        )
         return self.output_layer
 
-    def backward(self, X, y, learning_rate):
+    def run_backward_pass(self, features, targets, learning_rate):
         # Compute error
-        output_error = y - self.output_layer
-        output_delta = output_error * sigmoid_derivative(self.output_layer)
+        output_error = targets - self.output_layer
+        output_delta = output_error * sigmoid_gradient(self.output_layer)
 
         hidden_error = np.dot(output_delta, self.weights_hidden_output.T)
-        hidden_delta = hidden_error * sigmoid_derivative(self.hidden_layer)
+        hidden_delta = hidden_error * sigmoid_gradient(self.hidden_layer)
 
         # Update weights and biases
         self.weights_hidden_output += np.dot(self.hidden_layer.T, output_delta) * learning_rate
         self.bias_output += np.sum(output_delta, axis=0, keepdims=True) * learning_rate
-        self.weights_input_hidden += np.dot(X.T, hidden_delta) * learning_rate
+        self.weights_input_hidden += np.dot(features.T, hidden_delta) * learning_rate
         self.bias_hidden += np.sum(hidden_delta, axis=0, keepdims=True) * learning_rate
 
-    def train(self, X, y, epochs, learning_rate):
+    def fit(self, features, targets, epochs, learning_rate):
         for epoch in range(epochs):
             # Forward and backward pass
-            self.forward(X)
-            self.backward(X, y, learning_rate)
+            self.run_forward_pass(features)
+            self.run_backward_pass(features, targets, learning_rate)
             if epoch % 100 == 0:
-                loss = np.mean(np.square(y - self.output_layer))
+                loss = np.mean(np.square(targets - self.output_layer))
                 print(f"Epoch {epoch}, Loss: {loss}")
 
-    def predict(self, X):
+    def classify(self, features):
         # Prediction
-        return np.argmax(self.forward(X), axis=1)
+        return np.argmax(self.run_forward_pass(features), axis=1)
 
 # Reads and preprocesses a dataset
-def read_and_preprocess_data(file_name, num_samples=1000):
+def load_numpy_samples(file_name, num_samples=1000):
     import csv
     with open(file_name, 'r') as f:
         reader = csv.reader(f)
@@ -70,28 +74,36 @@ def read_and_preprocess_data(file_name, num_samples=1000):
     return features, labels
 
 # Trains and evaluates the neural network
-def main():
+def run_numpy_network():
     print("Reading and preprocessing data...")
-    train_features, train_labels = read_and_preprocess_data('emnist-byclass-train.csv', num_samples=1000)
-    test_features, test_labels = read_and_preprocess_data('emnist-byclass-test.csv', num_samples=200)
+    train_features, train_labels = load_numpy_samples(
+        'emnist-byclass-train.csv', num_samples=1000
+    )
+    test_features, test_labels = load_numpy_samples(
+        'emnist-byclass-test.csv', num_samples=200
+    )
 
     num_classes = 62  # 10 digits, 26 uppercase letters, and 26 lowercase letters
     input_size = 784  # Number of features (28×28 pixels)
     hidden_size = 16  # Arbitrary choice for hidden neurons
 
     # One-hot encode labels
-    train_labels_one_hot = one_hot_encode(train_labels, num_classes)
+    train_labels_one_hot = encode_one_hot(train_labels, num_classes)
 
     print("Initializing Neural Network...")
-    nn = BasicNeuralNetwork(input_size=input_size, hidden_size=hidden_size, output_size=num_classes)
+    network = NumpyCharacterNetwork(
+        input_size=input_size,
+        hidden_size=hidden_size,
+        output_size=num_classes
+    )
 
     print("Training Neural Network...")
-    nn.train(train_features, train_labels_one_hot, epochs=1000, learning_rate=0.1)
+    network.fit(train_features, train_labels_one_hot, epochs=1000, learning_rate=0.1)
 
     print("Evaluating Neural Network...")
-    predictions = nn.predict(test_features)
+    predictions = network.classify(test_features)
     accuracy = np.mean(predictions == np.array(test_labels))
     print(f"Test Accuracy: {accuracy * 100:.2f}%")
 
 if __name__ == "__main__":
-    main()
+    run_numpy_network()

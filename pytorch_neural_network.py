@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 
 # Loads and preprocesses the data
-def load_data(file_name, num_samples=None):
+def load_torch_samples(file_name, num_samples=None):
     features = []
     labels = []
     with open(file_name, 'r') as f:
@@ -24,9 +24,9 @@ def load_data(file_name, num_samples=None):
     return features, labels
 
 # Defines the neural network model
-class SimpleNN(nn.Module):
+class TorchCharacterNetwork(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
-        super(SimpleNN, self).__init__()
+        super().__init__()
         # Input layer to hidden layer
         self.fc1 = nn.Linear(input_size, hidden_size)
         # Activation function
@@ -41,11 +41,15 @@ class SimpleNN(nn.Module):
         out = self.fc2(out)
         return out  # No softmax here because CrossEntropyLoss does it
 
-def main():
+def run_pytorch_network():
     # Load the training and test data
     print("Loading data...")
-    train_features, train_labels = load_data('emnist-byclass-train.csv', num_samples=10000)
-    test_features, test_labels = load_data('emnist-byclass-test.csv', num_samples=2000)
+    train_features, train_labels = load_torch_samples(
+        'emnist-byclass-train.csv', num_samples=10000
+    )
+    test_features, test_labels = load_torch_samples(
+        'emnist-byclass-test.csv', num_samples=2000
+    )
 
     # Convert data to PyTorch tensors
     train_features = torch.from_numpy(train_features)
@@ -78,7 +82,7 @@ def main():
                                               shuffle=False)
 
     # Initialize the neural network model
-    model = SimpleNN(input_size, hidden_size, num_classes)
+    model = TorchCharacterNetwork(input_size, hidden_size, num_classes)
 
     # Define the loss function and optimizer
     criterion = nn.CrossEntropyLoss()  # Combines Softmax and NLLLoss
@@ -132,4 +136,4 @@ def main():
     plt.show()
 
 if __name__ == '__main__':
-    main()
+    run_pytorch_network()

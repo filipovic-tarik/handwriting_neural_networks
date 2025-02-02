@@ -19,14 +19,14 @@ CHARACTER_GAP = 8
 
 
 # Converts an EMNIST lowercase label to its letter
-def label_to_letter(label):
+def decode_lowercase_label(label):
     if 36 <= label <= 61:
         return chr(ord('a') + label - 36)
     return None
 
 
 # Reads a balanced selection of lowercase handwritten letters
-def read_letter_images(file_name, number_per_letter):
+def load_letter_image_pools(file_name, number_per_letter):
     letters = {chr(ord('a') + i): [] for i in range(26)}
     rows_read = 0
 
@@ -35,7 +35,7 @@ def read_letter_images(file_name, number_per_letter):
         for row in reader:
             rows_read += 1
             label = int(row[0])
-            letter = label_to_letter(label)
+            letter = decode_lowercase_label(label)
             if letter is not None and len(letters[letter]) < number_per_letter:
                 pixels = np.asarray(row[1:], dtype=np.uint8).reshape(28, 28).T
                 letters[letter].append(pixels)
@@ -57,7 +57,7 @@ def read_letter_images(file_name, number_per_letter):
 
 
 # Returns common lowercase English words
-def read_words(number):
+def select_common_words(number):
     words = []
     for word in iter_wordlist('en'):
         if not word.isascii() or not word.isalpha() or not word.islower():
@@ -71,7 +71,7 @@ def read_words(number):
 
 
 # Builds one word by joining untouched 28×28 EMNIST letters
-def build_word_image(word, letter_images, generator):
+def compose_word_image(word, letter_images, generator):
     characters = [generator.choice(letter_images[letter]) for letter in word]
     width = 28 * len(characters) + CHARACTER_GAP * (len(characters) - 1)
     canvas = Image.new('L', (width, 28), 255)
@@ -85,12 +85,14 @@ def build_word_image(word, letter_images, generator):
 
 
 # Creates one word without changing any character pixels
-def create_word_image(word, letter_images, generator):
-    return build_word_image(word, letter_images, generator)
+def generate_word_image(word, letter_images, generator):
+    return compose_word_image(word, letter_images, generator)
 
 
 # Creates one training or test folder
-def generate_split(words, variants, held_out_words, letter_images, folder, name, generator):
+def write_dataset_split(
+    words, variants, held_out_words, letter_images, folder, name, generator
+):
     image_folder = os.path.join(folder, 'images')
     os.makedirs(image_folder, exist_ok=True)
     label_file = os.path.join(folder, 'labels.tsv')
@@ -105,7 +107,7 @@ def generate_split(words, variants, held_out_words, letter_images, folder, name,
             word_variants = variants - 1 if word_number < held_out_words else variants
             for variant in range(word_variants):
                 file_name = f"{name}_{word_number:05d}_{variant:02d}.png"
-                image = create_word_image(word, letter_images, generator)
+                image = generate_word_image(word, letter_images, generator)
                 image.save(os.path.join(image_folder, file_name), optimize=True)
                 writer.writerow([file_name, word])
                 number_created += 1
@@ -114,7 +116,7 @@ def generate_split(words, variants, held_out_words, letter_images, folder, name,
                     print(f"  {name}: {number_created:,}/{expected_images:,}")
 
 
-def main():
+def build_dataset():
     base_directory = os.path.dirname(os.path.abspath(__file__))
     training_file = os.path.join(base_directory, 'emnist-byclass-train.csv')
     test_file = os.path.join(base_directory, 'emnist-byclass-test.csv')
@@ -130,18 +132,20 @@ def main():
         raise FileExistsError("synthetic_words already exists; remove it before regenerating")
 
     print("Reading common English words...")
-    words = read_words(NUMBER_OF_WORDS)
+    words = select_common_words(NUMBER_OF_WORDS)
     print(f"  selected {len(words):,} words")
 
     if not test_only:
         print("Reading EMNIST training letters...")
-        training_letters = read_letter_images(training_file, TRAINING_LETTERS_PER_CLASS)
+        training_letters = load_letter_image_pools(
+            training_file, TRAINING_LETTERS_PER_CLASS
+        )
     print("Reading EMNIST test letters...")
-    test_letters = read_letter_images(test_file, TEST_LETTERS_PER_CLASS)
+    test_letters = load_letter_image_pools(test_file, TEST_LETTERS_PER_CLASS)
 
     if not test_only:
         print("Generating training words...")
-        generate_split(
+        write_dataset_split(
             words,
             TRAINING_VARIANTS_PER_WORD,
             0,
@@ -151,7 +155,7 @@ def main():
             training_generator
         )
     print("Generating test words...")
-    generate_split(
+    write_dataset_split(
         words[:NUMBER_OF_TEST_WORDS],
         1,
         0,
@@ -167,4 +171,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    build_dataset()
