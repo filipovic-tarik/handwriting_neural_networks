@@ -17,7 +17,7 @@ MINIMUM_CHARACTER_GAP = 8
 
 
 # Converts a word image to dark-background, light-writing format
-def load_word_pixels(file_name):
+def read_word_image(file_name):
     image = Image.open(file_name).convert('L')
     pixels = np.asarray(image, dtype=np.float32)
 
@@ -33,7 +33,7 @@ def load_word_pixels(file_name):
 
 
 # Finds a threshold that separates the writing from the background
-def find_otsu_threshold(pixels):
+def calculate_threshold(pixels):
     histogram = np.bincount(pixels.astype(np.uint8).ravel(), minlength=256)
     total = pixels.size
     total_sum = sum(i * histogram[i] for i in range(256))
@@ -64,8 +64,8 @@ def find_otsu_threshold(pixels):
 
 
 # Splits a word into characters using blank vertical gaps
-def segment_characters(pixels):
-    threshold = find_otsu_threshold(pixels)
+def split_characters(pixels):
+    threshold = calculate_threshold(pixels)
     writing = pixels > threshold
 
     rows = np.where(np.any(writing, axis=1))[0]
@@ -112,7 +112,7 @@ def segment_characters(pixels):
 
 
 # Centers one character in the 28×28 EMNIST format
-def format_character_for_emnist(character):
+def prepare_character(character):
     image = Image.fromarray(character.astype(np.uint8))
     width, height = image.size
     scale = min(20 / width, 20 / height)
@@ -133,9 +133,9 @@ def format_character_for_emnist(character):
 
 
 # Returns several likely letters for each character image
-def score_character_candidates(train_features, train_labels, characters, neighbors=50):
+def classify_characters(train_features, train_labels, characters, neighbors=50):
     queries = np.asarray([
-        format_character_for_emnist(character)
+        prepare_character(character)
         for character in characters
     ])
     train_squared = np.sum(train_features * train_features, axis=1)
@@ -161,7 +161,7 @@ def score_character_candidates(train_features, train_labels, characters, neighbo
 
 
 # Reads an English word list
-def load_dictionary_words(file_name, word_length):
+def read_dictionary(file_name, word_length):
     words = set()
     with open(file_name, 'r', errors='ignore') as dictionary:
         for line in dictionary:
@@ -172,7 +172,7 @@ def load_dictionary_words(file_name, word_length):
 
 
 # Scores dictionary words using the character predictions
-def rank_candidate_words(predictions, words, number=5):
+def find_best_words(predictions, words, number=5):
     letter_scores = []
     for prediction in predictions:
         scores = {}
@@ -202,9 +202,9 @@ def rank_candidate_words(predictions, words, number=5):
     return [(word, weight / total) for weight, (_, word) in zip(weights, best_words)]
 
 
-def run_word_reader():
+def main():
     if len(sys.argv) < 2:
-        print("Usage: python word_reader.py word_image.png [dictionary.txt]")
+        print("Usage: python recognize_word.py word_image.png [dictionary.txt]")
         return
 
     base_directory = os.path.dirname(os.path.abspath(__file__))
@@ -213,8 +213,8 @@ def run_word_reader():
     training_file = os.path.join(base_directory, 'emnist-byclass-train.csv')
 
     print("Reading word image...")
-    pixels = load_word_pixels(image_file)
-    characters = segment_characters(pixels)
+    pixels = read_word_image(image_file)
+    characters = split_characters(pixels)
     if not characters:
         print("No writing was found in the image.")
         return
@@ -224,12 +224,12 @@ def run_word_reader():
     train_features, train_labels = load_emnist_arrays(training_file, TRAINING_EXAMPLES)
 
     print("Classifying characters...")
-    predictions = score_character_candidates(train_features, train_labels, characters)
+    predictions = classify_characters(train_features, train_labels, characters)
     raw_word = ''.join(max(prediction, key=prediction.get) for prediction in predictions)
     print(f"Character prediction: {raw_word}")
 
-    words = load_dictionary_words(dictionary_file, len(characters))
-    best_words = rank_candidate_words(predictions, words)
+    words = read_dictionary(dictionary_file, len(characters))
+    best_words = find_best_words(predictions, words)
     if not best_words:
         print("No dictionary words of this length were found.")
         return
@@ -240,4 +240,4 @@ def run_word_reader():
 
 
 if __name__ == '__main__':
-    run_word_reader()
+    main()

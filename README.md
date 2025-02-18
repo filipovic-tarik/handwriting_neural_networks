@@ -28,26 +28,26 @@ python -m pip install -r requirements.txt
 
 ## Word recognition
 
-`word_reader.py` recognizes one handwritten English word made from separated
+`recognize_word.py` recognizes one handwritten English word made from separated
 block letters. It segments the image, classifies each letter with KNN, and uses
 an English dictionary to rank the most likely words.
 
 Run it with:
 
 ```bash
-python word_reader.py word_image.png
+python recognize_word.py word_image.png
 ```
 
 Generate 200,000 training images and 2,000 test images covering 50,000 words:
 
 ```bash
-python build_word_dataset.py
+python generate_words.py
 ```
 
 Test the original EMNIST KNN on generated words with vocabulary context:
 
 ```bash
-python evaluate_word_reader.py
+python train_word_recognizer.py
 ```
 
 The reproducible lowercase benchmark uses all 697,932 EMNIST training

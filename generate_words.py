@@ -19,14 +19,14 @@ CHARACTER_GAP = 8
 
 
 # Converts an EMNIST lowercase label to its letter
-def decode_lowercase_label(label):
+def label_to_letter(label):
     if 36 <= label <= 61:
         return chr(ord('a') + label - 36)
     return None
 
 
 # Reads a balanced selection of lowercase handwritten letters
-def load_letter_image_pools(file_name, number_per_letter):
+def read_letter_images(file_name, number_per_letter):
     letters = {chr(ord('a') + i): [] for i in range(26)}
     rows_read = 0
 
@@ -35,7 +35,7 @@ def load_letter_image_pools(file_name, number_per_letter):
         for row in reader:
             rows_read += 1
             label = int(row[0])
-            letter = decode_lowercase_label(label)
+            letter = label_to_letter(label)
             if letter is not None and len(letters[letter]) < number_per_letter:
                 pixels = np.asarray(row[1:], dtype=np.uint8).reshape(28, 28).T
                 letters[letter].append(pixels)
@@ -57,7 +57,7 @@ def load_letter_image_pools(file_name, number_per_letter):
 
 
 # Returns common lowercase English words
-def select_common_words(number):
+def read_words(number):
     words = []
     for word in iter_wordlist('en'):
         if not word.isascii() or not word.isalpha() or not word.islower():
@@ -71,7 +71,7 @@ def select_common_words(number):
 
 
 # Builds one word by joining untouched 28×28 EMNIST letters
-def compose_word_image(word, letter_images, generator):
+def build_word_image(word, letter_images, generator):
     characters = [generator.choice(letter_images[letter]) for letter in word]
     width = 28 * len(characters) + CHARACTER_GAP * (len(characters) - 1)
     canvas = Image.new('L', (width, 28), 255)
@@ -85,12 +85,12 @@ def compose_word_image(word, letter_images, generator):
 
 
 # Creates one word without changing any character pixels
-def generate_word_image(word, letter_images, generator):
-    return compose_word_image(word, letter_images, generator)
+def create_word_image(word, letter_images, generator):
+    return build_word_image(word, letter_images, generator)
 
 
 # Creates one training or test folder
-def write_dataset_split(
+def generate_split(
     words, variants, held_out_words, letter_images, folder, name, generator
 ):
     image_folder = os.path.join(folder, 'images')
@@ -107,7 +107,7 @@ def write_dataset_split(
             word_variants = variants - 1 if word_number < held_out_words else variants
             for variant in range(word_variants):
                 file_name = f"{name}_{word_number:05d}_{variant:02d}.png"
-                image = generate_word_image(word, letter_images, generator)
+                image = create_word_image(word, letter_images, generator)
                 image.save(os.path.join(image_folder, file_name), optimize=True)
                 writer.writerow([file_name, word])
                 number_created += 1
@@ -116,7 +116,7 @@ def write_dataset_split(
                     print(f"  {name}: {number_created:,}/{expected_images:,}")
 
 
-def build_dataset():
+def main():
     base_directory = os.path.dirname(os.path.abspath(__file__))
     training_file = os.path.join(base_directory, 'emnist-byclass-train.csv')
     test_file = os.path.join(base_directory, 'emnist-byclass-test.csv')
@@ -132,20 +132,20 @@ def build_dataset():
         raise FileExistsError("synthetic_words already exists; remove it before regenerating")
 
     print("Reading common English words...")
-    words = select_common_words(NUMBER_OF_WORDS)
+    words = read_words(NUMBER_OF_WORDS)
     print(f"  selected {len(words):,} words")
 
     if not test_only:
         print("Reading EMNIST training letters...")
-        training_letters = load_letter_image_pools(
+        training_letters = read_letter_images(
             training_file, TRAINING_LETTERS_PER_CLASS
         )
     print("Reading EMNIST test letters...")
-    test_letters = load_letter_image_pools(test_file, TEST_LETTERS_PER_CLASS)
+    test_letters = read_letter_images(test_file, TEST_LETTERS_PER_CLASS)
 
     if not test_only:
         print("Generating training words...")
-        write_dataset_split(
+        generate_split(
             words,
             TRAINING_VARIANTS_PER_WORD,
             0,
@@ -155,7 +155,7 @@ def build_dataset():
             training_generator
         )
     print("Generating test words...")
-    write_dataset_split(
+    generate_split(
         words[:NUMBER_OF_TEST_WORDS],
         1,
         0,
@@ -171,4 +171,4 @@ def build_dataset():
 
 
 if __name__ == '__main__':
-    build_dataset()
+    main()
